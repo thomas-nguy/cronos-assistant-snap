@@ -1,0 +1,36 @@
+{
+  "version": "1.0.1",
+  "description": "Cronos assistant to help user interacting with Cronos.",
+  "proposedName": "Cronos Assistant",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hashdit/metamask-snap.git"
+  },
+  "source": {
+    "shasum": "PFahiDo3s7IdpAr9dOXMsQywUNIT6SS3amaeazlNgCY=",
+    "location": {
+      "npm": {
+        "filePath": "dist/bundle.js",
+        "iconPath": "images/hashdit.svg",
+        "packageName": "hashdit-snap-security",
+        "registry": "https://registry.npmjs.org/"
+      }
+    }
+  },
+  "initialPermissions": {
+    "endowment:transaction-insight": {
+      "allowTransactionOrigin": true
+    },
+    "endowment:network-access": {},
+    "endowment:ethereum-provider": {},
+    "snap_manageState": {},
+    "endowment:lifecycle-hooks": {},
+    "snap_dialog": {},
+    "endowment:page-home": {},
+    "endowment:signature-insight": {
+      "allowSignatureOrigin": true
+    }
+  },
+  "platformVersion": "6.22.0",
+  "manifestVersion": "0.1"
+}
