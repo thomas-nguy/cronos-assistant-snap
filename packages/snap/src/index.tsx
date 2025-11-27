@@ -1,5 +1,5 @@
 /* eslint-disable */
-import type { OnTransactionHandler, OnInstallHandler, OnHomePageHandler, OnSignatureHandler } from '@metamask/snaps-sdk';
+import type { OnTransactionHandler, OnInstallHandler, OnHomePageHandler, OnSignatureHandler, OnRpcRequestHandler } from '@metamask/snaps-sdk';
 
 import { onHomePageContent, errorContent, notSupportedChainContent, noContent } from './utils/content';
 import { Box, Text, Banner} from '@metamask/snaps-sdk/jsx';
@@ -13,7 +13,7 @@ export const onInstall: OnInstallHandler = async () => {
 // Called during a signature request transaction. Show insights
 export const onSignature: OnSignatureHandler = async ({ signature, signatureOrigin }) => {
 	try {
-		const [severity, title, description] = scenariosLevelToBannerValues([0]);
+		const banners = scenariosLevelToBannerValues([0]);
 		return {
 			content: (
 				<Box>
@@ -39,8 +39,7 @@ export const onTransaction: OnTransactionHandler = async ({ transaction, chainId
 	try {
 		const chainNumber = chainId.split(':')[1];
 		if (chainNumber == '25' || chainNumber == '338') {
-			let scenarios = [0];
-			scenarios = findScenarios(transaction, chainId, transactionOrigin);
+			let scenarios = findScenarios(transaction, chainId, transactionOrigin);
 			const banners = scenariosLevelToBannerValues(scenarios);
 
 			return {

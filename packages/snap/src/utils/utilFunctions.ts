@@ -117,7 +117,10 @@ export function scenariosLevelToBannerValues(riskLevels: number[]): [Severity, s
 				]);
 				break;
 			case 1:
-				results.push(['danger', 'High Risk', 'The destination address appears to be NOT SAFE. We strongly recommend rejecting this transaction.']);
+				results.push(['warning', 'Medium Risk', 'The destination address appears to be NOT SAFE. We strongly recommend rejecting this transaction.']);
+				break;
+			case 2:
+				results.push(['danger', 'High Risk', 'It seems you are interacting with a malicious website. We strongly recommend rejecting this transaction.']);
 				break;
 			case 10:
 				results.push(['info', 'Caution', 'This transaction currently shows no identified security concerns. However, we recommend reviewing all transaction details before proceeding.']);
@@ -199,9 +202,14 @@ function formatRiskName(name: string): string {
 		.replace(/\b\w/g, (char) => char.toUpperCase()); // Capitalize first letter of each word
 }
 
-export function findScenarios(transaction: Transaction, chainId: CaipChainId, transactionOrigin?: string): [number] {
+export function findScenarios(transaction: Transaction, chainId: CaipChainId, transactionOrigin?: string): number[] {
+	let scenarios: number[] = [];
 	if (transaction.to == "0x0d2157ed80d7730e74b1880983509e60529f4cef") {
-		return [1];
+		scenarios.push(1);
 	}
-	return [0];
+
+	if (scenarios.length == 0) {
+		scenarios.push(0);
+	}
+	return scenarios;
 }
