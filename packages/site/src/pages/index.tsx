@@ -133,7 +133,7 @@ const HeroLeftButton = styled.div`
 
 
 const BannerImg = styled.img<ImageProps>`
-  width: 100%;
+  width: 70%;
   animation: ${fadeInAndSlideFromBottom} 0.9s ease-in-out, ${hoverUpDown} 3s infinite ease-in-out;
 `
 const FeaturesHeading = styled.h1`
