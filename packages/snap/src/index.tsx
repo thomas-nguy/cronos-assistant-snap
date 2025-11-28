@@ -3,7 +3,7 @@ import type { OnTransactionHandler, OnInstallHandler, OnHomePageHandler, OnSigna
 
 import { onHomePageContent, errorContent, notSupportedChainContent, noContent } from './utils/content';
 import { Box, Text, Banner} from '@metamask/snaps-sdk/jsx';
-import { findScenarios, scenariosLevelToBannerValues } from './utils/utilFunctions';
+import { findInsights, findScenarios, scenariosLevelToBannerValues } from './utils/utilFunctions';
 
 // Called during after installation. Show install instructions and links
 export const onInstall: OnInstallHandler = async () => {
@@ -39,23 +39,44 @@ export const onTransaction: OnTransactionHandler = async ({ transaction, chainId
 	try {
 		const chainNumber = chainId.split(':')[1];
 		if (chainNumber == '25' || chainNumber == '338') {
-			let scenarios = findScenarios(transaction, chainId, transactionOrigin);
-			const banners = scenariosLevelToBannerValues(scenarios);
+			const banners = await findScenarios(transaction, chainId, transactionOrigin);
 
-			return {
-				content: (
-					<Box>
-						{banners.map((banner, index) => (
-							<Banner// better to use a unique id if available
-								title={banner[1]}
-								severity={banner[0]}
-							>
-								<Text>{banner[2]}</Text>
+			const insights = await findInsights(transaction, chainNumber, transactionOrigin);
+
+			if (insights.length > 0) {
+				return {
+					content: (
+						<Box>
+							<Banner title="Cronos Insights 🔎" severity="info">
+								<Text>{insights}</Text>
 							</Banner>
-						))}
-					</Box>
-				),
-			};
+							{banners.map((banner, index) => (
+								<Banner// better to use a unique id if available
+									title={banner[1]}
+									severity={banner[0]}
+								>
+									<Text>{banner[2]}</Text>
+								</Banner>
+							))}
+						</Box>
+					),
+				};
+			} else {
+				return {
+					content: (
+						<Box>
+							{banners.map((banner, index) => (
+								<Banner// better to use a unique id if available
+									title={banner[1]}
+									severity={banner[0]}
+								>
+									<Text>{banner[2]}</Text>
+								</Banner>
+							))}
+						</Box>
+					),
+				};
+			}
 		} else {
 			return {
 				content: (

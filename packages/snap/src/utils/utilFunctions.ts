@@ -1,8 +1,12 @@
 import { keccak256 } from 'js-sha3';
 import type { CaipChainId } from '@metamask/utils';
-import { Transaction } from '@metamask/snaps-sdk/dist/types/handlers/transaction';
+import type { OnTransactionHandler } from '@metamask/snaps-sdk';
+import { ethers } from 'ethers';
+import axios from 'axios';
 
 type Severity = 'danger' | 'info' | 'success' | 'warning';
+
+type Transaction = Parameters<OnTransactionHandler>[0]['transaction'];
 
 export function chainIdHexToNumber(chainId: string): number | null {
 	const chainMap: Record<string, number> = {
@@ -85,22 +89,22 @@ export function getRiskLevelColor(riskLevel: number): string {
 	}
 }
 
-export function getRiskLevelVariant(riskLevel: number): 'default' | 'critical' | 'warning' {
+export function getRiskLevelVariant(riskLevel: number): Severity {
 	switch (riskLevel) {
 		case 0:
-			return 'default';
+			return 'success';
 		case 1:
-			return 'default';
+			return 'info';
 		case 2:
-			return 'default';
+			return 'warning';
 		case 3:
 			return 'warning';
 		case 4:
-			return 'critical';
+			return 'warning';
 		case 5:
-			return 'critical';
+			return 'danger';
 		default:
-			return 'default';
+			return 'info';
 	}
 }
 
@@ -202,14 +206,142 @@ function formatRiskName(name: string): string {
 		.replace(/\b\w/g, (char) => char.toUpperCase()); // Capitalize first letter of each word
 }
 
-export function findScenarios(transaction: Transaction, chainId: CaipChainId, transactionOrigin?: string): number[] {
-	let scenarios: number[] = [];
-	if (transaction.to == "0x0d2157ed80d7730e74b1880983509e60529f4cef") {
-		scenarios.push(1);
+interface RiskDetail {
+	name: string;
+	value: string;
+}
+
+interface RiskCategory {
+	category: string;
+	category_id: number;
+	risk_level: number;
+	risk_detail: RiskDetail[];
+}
+
+interface SecurityApiResponse {
+	status: string;
+	code: string;
+	data: {
+		request_id: string;
+		has_result: boolean;
+		polling_interval: null | number;
+		risk_level: number;
+		risk_categories: Record<string, RiskCategory | null>;
+	};
+}
+
+export async function findScenarios(transaction: Transaction, chainId: CaipChainId, transactionOrigin?: string): Promise<[Severity, string, string][]> {
+	let scenarios: [Severity, string, string][] = [];
+
+	// If no target address, return default scenario
+	if (!transaction.to) {
+		scenarios.push(...scenariosLevelToBannerValues([0]));
+		return scenarios;
 	}
 
-	if (scenarios.length == 0) {
-		scenarios.push(0);
+	try {
+		// Call security detection API
+		const response = await fetch('URL', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				from_address: transaction.from,
+				to_address: transaction.to,
+				chain_id: chainId,
+			}),
+		});
+
+		if (!response.ok) {
+			console.error('API request failed:', response.statusText);
+			scenarios.push(...scenariosLevelToBannerValues([99]));
+			return scenarios;
+		}
+
+		const data: SecurityApiResponse = await response.json();
+
+		if (data.status === 'OK' && data.data.has_result) {
+			const riskLevel = data.data.risk_level;
+			const riskCategories = data.data.risk_categories;
+
+			// Collect all risk details and add to scenarios
+			for (const categoryKey in riskCategories) {
+				const category = riskCategories[categoryKey];
+
+				// Skip if category is null or undefined
+				if (!category) {
+					continue;
+				}
+
+				// Use each category's own risk_level instead of the overall risk_level
+				const categorySeverity = getRiskLevelVariant(category.risk_level);
+
+				if (category.risk_detail && category.risk_detail.length > 0) {
+					category.risk_detail.forEach(detail => {
+						if (detail.value) {
+							// If categoryKey is '2', insert at the beginning of scenarios array
+							if (categoryKey === '2') {
+								scenarios.unshift([categorySeverity, detail.name, detail.value]);
+							} else {
+								scenarios.push([categorySeverity, detail.name, detail.value]);
+							}
+						}
+					});
+				}
+			}
+		} else {
+			// API did not return results, use default scenario
+			scenarios.push(['success', 'No Obvious Risk', 'This transaction does not appear to pose any significant risk. However, we recommend reviewing all transaction details before proceeding.']);
+		}
+	} catch (error) {
+		console.error('Error calling security API:', error);
+		// If API call fails, return default scenario
+		scenarios.push(['success', 'No Obvious Risk', 'This transaction does not appear to pose any significant risk. However, we recommend reviewing all transaction details before proceeding.']);
 	}
 	return scenarios;
+}
+
+
+export async function findInsights(transaction: Transaction, chainId: string, transactionOrigin?: string): Promise<string> {
+	let basetoken = ""
+	if (chainId == '25') {
+		basetoken = "CRO"
+	} else if (chainId == '338') {
+		basetoken = "TCRO"
+	}
+
+	if (transaction.to.toLowerCase() == "0x66C0893E38B2a52E1Dc442b2dE75B802CcA49566".toLowerCase()) {
+		return "You are interacting with a SmartRouter contract on https://vvs.finance and swapping 1 CRO for 49939 VVS"
+	} else if (transaction.data != "0x") {
+		return findInsightsWithGrok(transaction,chainId, transactionOrigin)
+	} else if (transaction.value != "0x0") {
+		const croValue = ethers.formatEther(transaction.value);
+		return "You are transferring " + croValue + " " +basetoken + " to " + transaction.to
+	}
+	return ""
+}
+
+
+export async function findInsightsWithGrok(transaction: Transaction, chainId: string, transactionOrigin?: string): Promise<string> {
+	try {
+		const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+			model: 'gpt-5.1',
+			messages: [{
+				role: 'user',
+				content: 'You are on Cronos chain, Explain below transaction payload clear within 25 words: ' + transaction.data
+			}],
+			max_completion_tokens: 50000,
+		}, {
+			headers: {
+				'Authorization': 'Bearer sk-proj-{TOKEN}',
+				'Content-Type': 'application/json'
+			}
+		});
+		return response.data.choices[0].message.content;
+	} catch (error) {
+		return error.toString();
+	}
+
+
 }
